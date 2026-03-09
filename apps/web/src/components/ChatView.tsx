@@ -161,6 +161,7 @@ import {
   ZapIcon,
 } from "lucide-react";
 import { Button } from "./ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Input } from "./ui/input";
 import { Separator } from "./ui/separator";
 import { Group, GroupSeparator } from "./ui/group";
@@ -356,7 +357,7 @@ function workEntryIcon(workEntry: WorkLogEntry): LucideIcon {
   if (workEntry.requestKind === "file-read") return EyeIcon;
   if (workEntry.requestKind === "file-change") return SquarePenIcon;
 
-  const haystack = [workEntry.label, workEntry.detail, workEntry.command]
+  const haystack = [workEntry.label, workEntry.toolTitle, workEntry.detail, workEntry.output, workEntry.command]
     .filter((value): value is string => typeof value === "string" && value.length > 0)
     .join(" ")
     .toLowerCase();
@@ -409,6 +410,331 @@ function workEntryIcon(workEntry: WorkLogEntry): LucideIcon {
 
   return workToneIcon(workEntry.tone).icon;
 }
+
+function capitalizePhrase(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return value;
+  }
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
+}
+
+function toolWorkEntryHeading(workEntry: WorkLogEntry): string {
+  if (!workEntry.toolTitle) {
+    return capitalizePhrase(workEntry.label);
+  }
+
+  const statusLabel =
+    workEntry.toolStatus === "failed"
+      ? "failed"
+      : workEntry.toolStatus === "declined"
+        ? "declined"
+        : workEntry.toolStatus === "inProgress" || workEntry.activityKind === "tool.updated"
+          ? "running"
+          : workEntry.activityKind === "tool.started"
+            ? "started"
+            : "complete";
+  return capitalizePhrase(`${workEntry.toolTitle} ${statusLabel}`);
+}
+
+function primaryWorkEntryPath(workEntry: WorkLogEntry): string | null {
+  const [firstPath] = workEntry.changedFiles ?? [];
+  return firstPath ?? null;
+}
+
+function toolWorkEntryStatusBadge(workEntry: WorkLogEntry): {
+  label: string;
+  variant: "error" | "info" | "warning";
+} | null {
+  if (typeof workEntry.exitCode === "number") {
+    if (workEntry.exitCode === 0) {
+      return null;
+    }
+    return {
+      label: `Exit ${workEntry.exitCode}`,
+      variant: "error",
+    };
+  }
+
+  switch (workEntry.toolStatus) {
+    case "failed":
+      return { label: "Failed", variant: "error" };
+    case "declined":
+      return { label: "Declined", variant: "warning" };
+    case "inProgress":
+      return { label: "Running", variant: "info" };
+    default:
+      return null;
+  }
+}
+
+function summarizeToolOutput(value: string, limit = 96): string {
+  const singleLine = value.replace(/\s+/g, " ").trim();
+  if (singleLine.length <= limit) {
+    return singleLine;
+  }
+  return `${singleLine.slice(0, Math.max(0, limit - 3))}...`;
+}
+
+function collapsedToolWorkEntryPreview(workEntry: WorkLogEntry, primaryPath: string | null): string | null {
+  if (workEntry.itemType === "command_execution" || workEntry.requestKind === "command") {
+    if (workEntry.output) {
+      return summarizeToolOutput(workEntry.output);
+    }
+    if (workEntry.command) {
+      return workEntry.command;
+    }
+  }
+  if (primaryPath) {
+    return primaryPath;
+  }
+  if (workEntry.command) {
+    return workEntry.command;
+  }
+  if (workEntry.output) {
+    return summarizeToolOutput(workEntry.output);
+  }
+  if (workEntry.detail) {
+    return summarizeToolOutput(workEntry.detail);
+  }
+  return null;
+}
+
+function isRichToolWorkEntry(workEntry: WorkLogEntry): boolean {
+  return workEntry.activityKind === "tool.completed" || workEntry.activityKind === "tool.updated";
+}
+
+const ToolWorkEntryRow = memo(function ToolWorkEntryRow(props: {
+  workEntry: WorkLogEntry;
+  workEntryIndex: number;
+}) {
+  const { workEntry, workEntryIndex } = props;
+  const [open, setOpen] = useState(false);
+  const iconConfig = workToneIcon(workEntry.tone);
+  const EntryIcon = workEntryIcon(workEntry);
+  const heading = toolWorkEntryHeading(workEntry);
+  const statusBadge = toolWorkEntryStatusBadge(workEntry);
+  const primaryPath = !workEntry.command ? primaryWorkEntryPath(workEntry) : null;
+  const additionalPaths =
+    workEntry.changedFiles?.slice(primaryPath ? 1 : 0, primaryPath ? 4 : 4) ?? [];
+  const hiddenPathCount =
+    (workEntry.changedFiles?.length ?? 0) - additionalPaths.length - (primaryPath ? 1 : 0);
+  const preview = collapsedToolWorkEntryPreview(workEntry, primaryPath);
+  const displayText = preview ? `${heading} - ${preview}` : heading;
+  const hasExpandedDetails = Boolean(
+    workEntry.command ||
+      primaryPath ||
+      additionalPaths.length > 0 ||
+      workEntry.output ||
+      typeof workEntry.exitCode === "number",
+  );
+
+  const summaryRow = (
+    <div
+      className={cn(
+        "flex items-center gap-2 rounded-lg px-1 py-1 transition-colors duration-150",
+        hasExpandedDetails ? "hover:bg-accent/25" : "",
+      )}
+    >
+      {hasExpandedDetails && (
+        <ChevronRightIcon
+          className={cn(
+            "size-3 shrink-0 text-muted-foreground/45 transition-transform duration-150",
+            open && "rotate-90",
+          )}
+        />
+      )}
+      <span
+        className={cn(
+          "flex size-5 shrink-0 items-center justify-center",
+          iconConfig.className,
+          !hasExpandedDetails && "ml-5",
+        )}
+      >
+        <EntryIcon className="size-3" />
+      </span>
+      <div className="min-w-0 flex-1 overflow-hidden">
+        <p
+          className={cn(
+            "truncate text-[11px] leading-5",
+            workToneClass(workEntry.tone),
+            preview ? "text-muted-foreground/70" : "",
+          )}
+          title={displayText}
+        >
+          <span className={cn("text-foreground/80", workToneClass(workEntry.tone))}>{heading}</span>
+          {preview && <span className="text-muted-foreground/55"> - {preview}</span>}
+        </p>
+      </div>
+      {statusBadge && (
+        <Badge
+          variant={statusBadge.variant}
+          className="shrink-0 px-1 py-0 font-mono text-[8px] uppercase tracking-[0.14em]"
+        >
+          {statusBadge.label}
+        </Badge>
+      )}
+      <span className="shrink-0 text-[9px] text-muted-foreground/35">
+        {formatTimestamp(workEntry.createdAt)}
+      </span>
+    </div>
+  );
+
+  const expandedDetails = (
+    <div className="mt-1 space-y-1.5 pl-10">
+      {workEntry.command && (
+        <div
+          className="flex min-w-0 items-center gap-1.5 rounded-md border border-border/55 bg-background/55 px-2 py-1"
+          title={workEntry.command}
+        >
+          <TerminalIcon className="size-3 shrink-0 text-muted-foreground/65" />
+          <span className="truncate font-mono text-[10px] text-foreground/78">{workEntry.command}</span>
+        </div>
+      )}
+
+      {!workEntry.command && primaryPath && (
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Badge variant="outline" className="max-w-32 shrink-0 truncate px-1.5 py-0 text-[10px]">
+            {basenameOfPath(primaryPath)}
+          </Badge>
+          <span
+            className="min-w-0 truncate font-mono text-[10px] text-muted-foreground/70"
+            title={primaryPath}
+          >
+            {primaryPath}
+          </span>
+        </div>
+      )}
+
+      {additionalPaths.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {additionalPaths.map((filePath) => (
+            <span
+              key={`${workEntry.id}:${filePath}`}
+              className="rounded-md border border-border/55 bg-background/55 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/75"
+              title={filePath}
+            >
+              {filePath}
+            </span>
+          ))}
+          {hiddenPathCount > 0 && (
+            <span className="px-1 text-[10px] text-muted-foreground/55">+{hiddenPathCount}</span>
+          )}
+        </div>
+      )}
+
+      {workEntry.output && (
+        <div className="rounded-md border border-border/55 bg-background/75 px-2.5 py-2">
+          <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-4 text-foreground/78">
+            {workEntry.output}
+          </pre>
+        </div>
+      )}
+
+      {typeof workEntry.exitCode === "number" && (
+        <div className="text-[9px] font-mono uppercase tracking-[0.12em] text-muted-foreground/55">
+          {workEntry.exitCode === 0 ? "Exited successfully" : `Exit ${workEntry.exitCode}`}
+        </div>
+      )}
+    </div>
+  );
+
+  if (!hasExpandedDetails) {
+    return (
+      <div
+        className="animate-in fade-in slide-in-from-bottom-1 rounded-lg duration-200"
+        style={{
+          animationDelay: `${Math.min(workEntryIndex, 4) * 40}ms`,
+        }}
+      >
+        {summaryRow}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="animate-in fade-in slide-in-from-bottom-1 rounded-lg duration-200"
+      style={{
+        animationDelay: `${Math.min(workEntryIndex, 4) * 40}ms`,
+      }}
+    >
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleTrigger className="block w-full text-left">{summaryRow}</CollapsibleTrigger>
+        <CollapsibleContent>{expandedDetails}</CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+});
+
+const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
+  workEntry: WorkLogEntry;
+  workEntryIndex: number;
+}) {
+  const { workEntry, workEntryIndex } = props;
+  const iconConfig = workToneIcon(workEntry.tone);
+  const EntryIcon = workEntryIcon(workEntry);
+  const preview = workEntryPreview(workEntry);
+  const displayText = preview ? `${workEntry.label} - ${preview}` : workEntry.label;
+  const hasChangedFiles = (workEntry.changedFiles?.length ?? 0) > 0;
+  const previewIsChangedFiles = hasChangedFiles && !workEntry.command && !workEntry.detail;
+
+  return (
+    <div
+      className="animate-in fade-in slide-in-from-bottom-1 rounded-lg px-1 py-1 duration-200"
+      style={{
+        animationDelay: `${Math.min(workEntryIndex, 4) * 40}ms`,
+      }}
+    >
+      <div className="flex items-center gap-2 transition-[opacity,translate] duration-200">
+        <span
+          className={cn(
+            "flex size-5 shrink-0 items-center justify-center",
+            iconConfig.className,
+          )}
+        >
+          <EntryIcon className="size-3" />
+        </span>
+        <div className="min-w-0 flex-1 overflow-hidden animate-in fade-in duration-300">
+          <p
+            className={cn(
+              "truncate text-[11px] leading-5",
+              workToneClass(workEntry.tone),
+              preview ? "text-muted-foreground/70" : "",
+            )}
+            title={displayText}
+          >
+            <span className={cn("text-foreground/80", workToneClass(workEntry.tone))}>
+              {workEntry.label}
+            </span>
+            {preview && <span className="text-muted-foreground/55"> - {preview}</span>}
+          </p>
+        </div>
+        <span className="shrink-0 text-[9px] text-muted-foreground/35">
+          {formatTimestamp(workEntry.createdAt)}
+        </span>
+      </div>
+      {hasChangedFiles && !previewIsChangedFiles && (
+        <div className="animate-in fade-in slide-in-from-bottom-1 mt-1 flex flex-wrap gap-1 pl-6 duration-200">
+          {workEntry.changedFiles?.slice(0, 4).map((filePath) => (
+            <span
+              key={`${workEntry.id}:${filePath}`}
+              className="rounded-md border border-border/55 bg-background/55 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/75"
+              title={filePath}
+            >
+              {filePath}
+            </span>
+          ))}
+          {(workEntry.changedFiles?.length ?? 0) > 4 && (
+            <span className="px-1 text-[10px] text-muted-foreground/55">
+              +{(workEntry.changedFiles?.length ?? 0) - 4}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
 
 
 
@@ -5341,67 +5667,18 @@ const MessagesTimeline = memo(function MessagesTimeline({
               )}
               <div className="space-y-0.5">
                 {visibleEntries.map((workEntry, workEntryIndex) => {
-                  const iconConfig = workToneIcon(workEntry.tone);
-                  const EntryIcon = workEntryIcon(workEntry);
-                  const preview = workEntryPreview(workEntry);
-                  const displayText = preview ? `${workEntry.label} - ${preview}` : workEntry.label;
-                  const hasChangedFiles = (workEntry.changedFiles?.length ?? 0) > 0;
-                  const previewIsChangedFiles = hasChangedFiles && !workEntry.command && !workEntry.detail;
-                  return (
-                    <div
+                  return isRichToolWorkEntry(workEntry) ? (
+                    <ToolWorkEntryRow
                       key={`work-row:${workEntry.id}`}
-                      className="animate-in fade-in slide-in-from-bottom-1 rounded-lg px-1 py-1 duration-200"
-                      style={{
-                        animationDelay: `${Math.min(workEntryIndex, 4) * 40}ms`,
-                      }}
-                    >
-                      <div className="flex items-center gap-2 transition-[opacity,translate] duration-200">
-                        <span
-                          className={cn(
-                            "flex size-5 shrink-0 items-center justify-center",
-                            iconConfig.className,
-                          )}
-                        >
-                          <EntryIcon className="size-3" />
-                        </span>
-                        <div className="min-w-0 flex-1 overflow-hidden animate-in fade-in duration-300">
-                          <p
-                            className={cn(
-                              "truncate text-[11px] leading-5",
-                              workToneClass(workEntry.tone),
-                              preview ? "text-muted-foreground/70" : "",
-                            )}
-                            title={displayText}
-                          >
-                            <span className={cn("text-foreground/80", workToneClass(workEntry.tone))}>
-                              {workEntry.label}
-                            </span>
-                            {preview && <span className="text-muted-foreground/55"> - {preview}</span>}
-                          </p>
-                        </div>
-                        <span className="shrink-0 text-[9px] text-muted-foreground/35">
-                          {formatTimestamp(workEntry.createdAt)}
-                        </span>
-                      </div>
-                      {hasChangedFiles && !previewIsChangedFiles && (
-                        <div className="animate-in fade-in slide-in-from-bottom-1 mt-1 flex flex-wrap gap-1 pl-6 duration-200">
-                          {workEntry.changedFiles?.slice(0, 4).map((filePath) => (
-                            <span
-                              key={`${workEntry.id}:${filePath}`}
-                              className="rounded-md border border-border/55 bg-background/55 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/75"
-                              title={filePath}
-                            >
-                              {filePath}
-                            </span>
-                          ))}
-                          {(workEntry.changedFiles?.length ?? 0) > 4 && (
-                            <span className="px-1 text-[10px] text-muted-foreground/55">
-                              +{(workEntry.changedFiles?.length ?? 0) - 4}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                      workEntry={workEntry}
+                      workEntryIndex={workEntryIndex}
+                    />
+                  ) : (
+                    <SimpleWorkEntryRow
+                      key={`work-row:${workEntry.id}`}
+                      workEntry={workEntry}
+                      workEntryIndex={workEntryIndex}
+                    />
                   );
                 })}
               </div>

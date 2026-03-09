@@ -2,6 +2,7 @@ import {
   ApprovalRequestId,
   type AssistantDeliveryMode,
   CommandId,
+  type ItemLifecyclePayload,
   MessageId,
   type OrchestrationEvent,
   CheckpointRef,
@@ -75,6 +76,16 @@ function normalizeProposedPlanMarkdown(planMarkdown: string | undefined): string
     return undefined;
   }
   return trimmed;
+}
+
+function toolLifecycleActivityPayload(payload: ItemLifecyclePayload) {
+  return {
+    itemType: payload.itemType,
+    ...(payload.title ? { title: payload.title } : {}),
+    ...(payload.status ? { status: payload.status } : {}),
+    ...(payload.detail ? { detail: truncateDetail(payload.detail) } : {}),
+    ...(payload.data !== undefined ? { data: payload.data } : {}),
+  };
 }
 
 function proposedPlanIdForTurn(threadId: ThreadId, turnId: TurnId): string {
@@ -422,12 +433,7 @@ function runtimeEventToActivities(
           tone: "tool",
           kind: "tool.updated",
           summary: event.payload.title ?? "Tool updated",
-          payload: {
-            itemType: event.payload.itemType,
-            ...(event.payload.status ? { status: event.payload.status } : {}),
-            ...(event.payload.detail ? { detail: truncateDetail(event.payload.detail) } : {}),
-            ...(event.payload.data !== undefined ? { data: event.payload.data } : {}),
-          },
+          payload: toolLifecycleActivityPayload(event.payload),
           turnId: toTurnId(event.turnId) ?? null,
           ...maybeSequence,
         },
@@ -445,10 +451,7 @@ function runtimeEventToActivities(
           tone: "tool",
           kind: "tool.completed",
           summary: `${event.payload.title ?? "Tool"} complete`,
-          payload: {
-            itemType: event.payload.itemType,
-            ...(event.payload.detail ? { detail: truncateDetail(event.payload.detail) } : {}),
-          },
+          payload: toolLifecycleActivityPayload(event.payload),
           turnId: toTurnId(event.turnId) ?? null,
           ...maybeSequence,
         },
@@ -466,10 +469,7 @@ function runtimeEventToActivities(
           tone: "tool",
           kind: "tool.started",
           summary: `${event.payload.title ?? "Tool"} started`,
-          payload: {
-            itemType: event.payload.itemType,
-            ...(event.payload.detail ? { detail: truncateDetail(event.payload.detail) } : {}),
-          },
+          payload: toolLifecycleActivityPayload(event.payload),
           turnId: toTurnId(event.turnId) ?? null,
           ...maybeSequence,
         },

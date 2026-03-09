@@ -1234,6 +1234,68 @@ describe("ProviderRuntimeIngestion", () => {
     ).toBe(true);
   });
 
+  it("preserves completed tool metadata for orchestration activity rendering", async () => {
+    const harness = await createHarness();
+    const now = new Date().toISOString();
+
+    harness.emit({
+      type: "item.completed",
+      eventId: asEventId("evt-tool-completed-rendering"),
+      provider: "codex",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("turn-tool-rendering"),
+      itemId: asItemId("item-tool-rendering"),
+      payload: {
+        itemType: "command_execution",
+        status: "completed",
+        title: "bash",
+        detail: "npm run dev <exited with exit code 0>",
+        data: {
+          item: {
+            command: ["npm", "run", "dev"],
+            result: {
+              content: "npm run dev <exited with exit code 0>",
+              exitCode: 0,
+            },
+          },
+        },
+      },
+    });
+
+    const thread = await waitForThread(
+      harness.engine,
+      (entry) =>
+        entry.activities.some(
+          (activity: ProviderRuntimeTestActivity) => activity.id === "evt-tool-completed-rendering",
+        ),
+    );
+
+    const activity = thread.activities.find(
+      (entry: ProviderRuntimeTestActivity) => entry.id === "evt-tool-completed-rendering",
+    );
+    const payload =
+      activity?.payload && typeof activity.payload === "object"
+        ? (activity.payload as Record<string, unknown>)
+        : undefined;
+
+    expect(activity?.kind).toBe("tool.completed");
+    expect(activity?.summary).toBe("bash complete");
+    expect(payload?.itemType).toBe("command_execution");
+    expect(payload?.title).toBe("bash");
+    expect(payload?.status).toBe("completed");
+    expect(payload?.detail).toBe("npm run dev <exited with exit code 0>");
+    expect(payload?.data).toEqual({
+      item: {
+        command: ["npm", "run", "dev"],
+        result: {
+          content: "npm run dev <exited with exit code 0>",
+          exitCode: 0,
+        },
+      },
+    });
+  });
+
   it("consumes P1 runtime events into thread metadata, diff checkpoints, and activities", async () => {
     const harness = await createHarness();
     const now = new Date().toISOString();

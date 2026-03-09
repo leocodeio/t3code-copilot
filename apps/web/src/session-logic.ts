@@ -28,10 +28,14 @@ export interface WorkLogEntry {
   createdAt: string;
   label: string;
   detail?: string;
+  output?: string;
   command?: string;
+  exitCode?: number;
   changedFiles?: ReadonlyArray<string>;
   tone: "thinking" | "tool" | "info" | "error";
   activityKind: OrchestrationThreadActivity["kind"];
+  toolTitle?: string;
+  toolStatus?: "inProgress" | "completed" | "failed" | "declined";
   itemType?:
     | "command_execution"
     | "file_change"
@@ -432,6 +436,9 @@ export function deriveWorkLogEntries(
           : null;
       const command = extractToolCommand(payload);
       const changedFiles = extractChangedFiles(payload);
+      const title = extractToolTitle(payload);
+      const status = extractToolStatus(payload);
+      const { output, exitCode } = extractToolOutputEnvelope(payload);
       const entry: WorkLogEntry = {
         id: activity.id,
         createdAt: activity.createdAt,
@@ -442,13 +449,28 @@ export function deriveWorkLogEntries(
       const itemType = extractWorkLogItemType(payload);
       const requestKind = extractWorkLogRequestKind(payload);
       if (payload && typeof payload.detail === "string" && payload.detail.length > 0) {
-        entry.detail = payload.detail;
+        const detail = stripTrailingExitCode(payload.detail).output;
+        if (detail) {
+          entry.detail = detail;
+        }
       }
       if (command) {
         entry.command = command;
       }
+      if (output) {
+        entry.output = output;
+      }
+      if (exitCode !== undefined) {
+        entry.exitCode = exitCode;
+      }
       if (changedFiles.length > 0) {
         entry.changedFiles = changedFiles;
+      }
+      if (title) {
+        entry.toolTitle = title;
+      }
+      if (status) {
+        entry.toolStatus = status;
       }
       if (itemType) {
         entry.itemType = itemType;
@@ -498,6 +520,92 @@ function extractToolCommand(payload: Record<string, unknown> | null): string | n
     normalizeCommandValue(data?.command),
   ];
   return candidates.find((candidate) => candidate !== null) ?? null;
+}
+
+function extractToolTitle(payload: Record<string, unknown> | null): string | null {
+  return asTrimmedString(payload?.title);
+}
+
+function extractToolStatus(
+  payload: Record<string, unknown> | null,
+): WorkLogEntry["toolStatus"] | undefined {
+  switch (payload?.status) {
+    case "in_progress":
+      return "inProgress";
+    case "inProgress":
+    case "completed":
+    case "failed":
+    case "declined":
+      return payload.status;
+    default:
+      return undefined;
+  }
+}
+
+function asInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
+}
+
+function extractToolExitCode(payload: Record<string, unknown> | null): number | null {
+  const data = asRecord(payload?.data);
+  const item = asRecord(data?.item);
+  const itemResult = asRecord(item?.result);
+  const dataResult = asRecord(data?.result);
+  const candidates = [
+    asInteger(itemResult?.exitCode),
+    asInteger(itemResult?.exit_code),
+    asInteger(dataResult?.exitCode),
+    asInteger(dataResult?.exit_code),
+    asInteger(data?.exitCode),
+    asInteger(data?.exit_code),
+  ];
+  return candidates.find((candidate) => candidate !== null) ?? null;
+}
+
+function stripTrailingExitCode(
+  value: string,
+): { output: string | null; exitCode?: number | undefined } {
+  const trimmed = value.trim();
+  const match = /^(?<output>[\s\S]*?)(?:\s*<exited with exit code (?<code>\d+)>)\s*$/i.exec(trimmed);
+  if (!match?.groups) {
+    return {
+      output: trimmed.length > 0 ? trimmed : null,
+    };
+  }
+  const exitCode = Number.parseInt(match.groups.code ?? "", 10);
+  const normalizedOutput = match.groups.output?.trim() ?? "";
+  return {
+    output: normalizedOutput.length > 0 ? normalizedOutput : null,
+    ...(Number.isInteger(exitCode) ? { exitCode } : {}),
+  };
+}
+
+function extractToolOutputEnvelope(
+  payload: Record<string, unknown> | null,
+): { output?: string | undefined; exitCode?: number | undefined } {
+  const data = asRecord(payload?.data);
+  const item = asRecord(data?.item);
+  const itemResult = asRecord(item?.result);
+  const dataResult = asRecord(data?.result);
+  const outputCandidates = [
+    asTrimmedString(itemResult?.content),
+    asTrimmedString(dataResult?.content),
+    asTrimmedString(data?.output),
+    asTrimmedString(data?.stdout),
+    asTrimmedString(data?.stderr),
+    asTrimmedString(payload?.detail),
+  ];
+  const rawOutput = outputCandidates.find((candidate) => candidate !== null) ?? null;
+  if (!rawOutput) {
+    const exitCode = extractToolExitCode(payload);
+    return exitCode === null ? {} : { exitCode };
+  }
+  const normalizedOutput = stripTrailingExitCode(rawOutput);
+  const exitCode = extractToolExitCode(payload) ?? normalizedOutput.exitCode;
+  return {
+    ...(normalizedOutput.output ? { output: normalizedOutput.output } : {}),
+    ...(exitCode !== undefined ? { exitCode } : {}),
+  };
 }
 
 function extractWorkLogItemType(payload: Record<string, unknown> | null): WorkLogEntry["itemType"] | undefined {
