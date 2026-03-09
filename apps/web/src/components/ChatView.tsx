@@ -3201,6 +3201,10 @@ export default function ChatView({ threadId }: ChatViewProps) {
         createdAt: messageCreatedAt,
       });
       turnStartSucceeded = true;
+      if (createdServerThreadForLocalDraft) {
+        const snapshot = await api.orchestration.getSnapshot();
+        syncServerReadModel(snapshot);
+      }
       if (isFirstMessage) {
         clearDraftThread(threadIdForSend);
       }
