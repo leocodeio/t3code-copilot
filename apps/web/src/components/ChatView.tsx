@@ -6094,9 +6094,19 @@ function formatCopilotQuotaResetDate(value: string | undefined): string | null {
 
 function deriveCopilotQuotaSummary(
   quotaSnapshots: ReadonlyArray<ServerProviderQuotaSnapshot> | undefined,
-): { title: string; detail: string } | null {
+): {
+  title: string;
+  detail: string;
+  remainingPercent: number;
+  progressLabel: string;
+  progressTone: "default" | "warning" | "danger";
+} | null {
   const snapshot = pickCopilotQuotaSnapshot(quotaSnapshots);
   if (!snapshot) return null;
+  const remainingPercent =
+    snapshot.entitlementRequests > 0
+      ? Math.min(100, Math.max(0, (snapshot.remainingRequests / snapshot.entitlementRequests) * 100))
+      : normalizeCopilotRemainingPercentage(snapshot.remainingPercentage);
 
   const detailParts: string[] = [];
   if (snapshot.entitlementRequests > 0) {
@@ -6119,6 +6129,13 @@ function deriveCopilotQuotaSummary(
   return {
     title: formatCopilotQuotaLabel(snapshot.key),
     detail: detailParts.join(" · "),
+    remainingPercent,
+    progressLabel:
+      snapshot.entitlementRequests > 0
+        ? `${snapshot.remainingRequests} of ${snapshot.entitlementRequests} requests remaining`
+        : `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(remainingPercent)}% remaining`,
+    progressTone:
+      remainingPercent <= 10 ? "danger" : remainingPercent <= 25 ? "warning" : "default",
   };
 }
 
@@ -6128,7 +6145,13 @@ const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   lockedProvider: ProviderKind | null;
   modelOptionsByProvider: Record<ProviderKind, ReadonlyArray<{ slug: string; name: string }>>;
   copilotModels: ReadonlyArray<ServerProviderModel>;
-  copilotQuotaSummary: { title: string; detail: string } | null;
+  copilotQuotaSummary: {
+    title: string;
+    detail: string;
+    remainingPercent: number;
+    progressLabel: string;
+    progressTone: "default" | "warning" | "danger";
+  } | null;
   compact?: boolean;
   disabled?: boolean;
   onProviderModelChange: (provider: ProviderKind, model: ModelSlug) => void;
@@ -6211,6 +6234,39 @@ const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                     <p className="text-[11px] text-muted-foreground/80">
                       {props.copilotQuotaSummary.detail}
                     </p>
+                    <div className="mt-2.5 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/70">
+                        <span>{props.copilotQuotaSummary.progressLabel}</span>
+                        <span>
+                          {new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+                            props.copilotQuotaSummary.remainingPercent,
+                          )}
+                          %
+                        </span>
+                      </div>
+                      <div
+                        role="progressbar"
+                        aria-label={`${props.copilotQuotaSummary.title} quota remaining`}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(props.copilotQuotaSummary.remainingPercent)}
+                        className="h-1.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/15"
+                      >
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-[width,background-color] duration-200",
+                            props.copilotQuotaSummary.progressTone === "danger"
+                              ? "bg-red-500 dark:bg-red-400"
+                              : props.copilotQuotaSummary.progressTone === "warning"
+                                ? "bg-amber-500 dark:bg-amber-400"
+                                : "bg-black dark:bg-white",
+                          )}
+                          style={{
+                            width: `${Math.max(0, Math.min(100, props.copilotQuotaSummary.remainingPercent))}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ) : null}
                 <MenuGroup>
