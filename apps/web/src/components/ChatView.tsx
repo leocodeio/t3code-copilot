@@ -4371,21 +4371,27 @@ export default function ChatView({ threadId }: ChatViewProps) {
                       />
 
                       {isComposerFooterCompact ? (
-                        <CompactComposerControlsMenu
-                          activePlan={Boolean(activePlan || activeProposedPlan || planSidebarOpen)}
-                          interactionMode={interactionMode}
-                          planSidebarOpen={planSidebarOpen}
-                          runtimeMode={runtimeMode}
-                          selectedEffort={selectedEffort}
-                          selectedProvider={selectedProvider}
-                          selectedCodexFastModeEnabled={selectedCodexFastModeEnabled}
-                          reasoningOptions={reasoningOptions}
-                          onEffortSelect={onEffortSelect}
-                          onCodexFastModeChange={onCodexFastModeChange}
-                          onToggleInteractionMode={toggleInteractionMode}
-                          onTogglePlanSidebar={togglePlanSidebar}
-                          onToggleRuntimeMode={toggleRuntimeMode}
-                        />
+                        <>
+                          <InteractionModeToggleButton
+                            interactionMode={interactionMode}
+                            onClick={toggleInteractionMode}
+                          />
+                          <CompactComposerControlsMenu
+                            activePlan={Boolean(activePlan || activeProposedPlan || planSidebarOpen)}
+                            interactionMode={interactionMode}
+                            planSidebarOpen={planSidebarOpen}
+                            runtimeMode={runtimeMode}
+                            selectedEffort={selectedEffort}
+                            selectedProvider={selectedProvider}
+                            selectedCodexFastModeEnabled={selectedCodexFastModeEnabled}
+                            reasoningOptions={reasoningOptions}
+                            onEffortSelect={onEffortSelect}
+                            onCodexFastModeChange={onCodexFastModeChange}
+                            onToggleInteractionMode={toggleInteractionMode}
+                            onTogglePlanSidebar={togglePlanSidebar}
+                            onToggleRuntimeMode={toggleRuntimeMode}
+                          />
+                        </>
                       ) : (
                         <>
                           {selectedProvider === "codex" && selectedEffort != null ? (
@@ -4418,6 +4424,13 @@ export default function ChatView({ threadId }: ChatViewProps) {
                               onEffortChange={onEffortSelect}
                             />
                           ) : null}
+
+                          <Separator orientation="vertical" className="mx-0.5 hidden h-4 sm:block" />
+
+                          <InteractionModeToggleButton
+                            interactionMode={interactionMode}
+                            onClick={toggleInteractionMode}
+                          />
 
                           <Button
                             variant="ghost"
@@ -6616,6 +6629,32 @@ const CompactComposerControlsMenu = memo(function CompactComposerControlsMenu(pr
         ) : null}
       </MenuPopup>
     </Menu>
+  );
+});
+
+const InteractionModeToggleButton = memo(function InteractionModeToggleButton(props: {
+  interactionMode: ProviderInteractionMode;
+  onClick: () => void;
+}) {
+  const isPlanMode = props.interactionMode === "plan";
+  return (
+    <Button
+      variant="ghost"
+      className={cn(
+        "shrink-0 whitespace-nowrap px-2 sm:px-3",
+        isPlanMode
+          ? "text-ring-plan hover:text-ring-plan"
+          : "text-muted-foreground/70 hover:text-foreground/80",
+      )}
+      size="sm"
+      type="button"
+      onClick={props.onClick}
+      title={isPlanMode ? "return to normal chat mode" : "enter plan mode"}
+      aria-label={isPlanMode ? "Plan interaction mode button" : "Chat interaction mode button"}
+    >
+      <ListTodoIcon className="size-4 shrink-0" />
+      <span>{isPlanMode ? "Plan" : "Chat"}</span>
+    </Button>
   );
 });
 
