@@ -101,6 +101,14 @@ export function isCollapsedCursorAdjacentToMention(
     return false;
   }
 
+  const collapsedLength = segments.reduce(
+    (total, segment) => total + collapsedSegmentLength(segment),
+    0,
+  );
+  if (Number.isFinite(cursorInput) && cursorInput > collapsedLength) {
+    return false;
+  }
+
   const cursor = clampCollapsedComposerCursor(segments, cursorInput);
   let collapsedOffset = 0;
 
