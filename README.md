@@ -19,6 +19,18 @@ T3 Code is a minimal web GUI for coding agents. This fork supports both Codex an
 
 > [!WARNING]
 > You need to have either [Codex CLI](https://github.com/openai/codex) or GitHub Copilot available and authorized for T3 Code to work.
+> When you run T3 Code from source, `bun install` is enough for Copilot support because `apps/server` already depends on `@github/copilot` and `@github/copilot-sdk`.
+> If you want to use GitHub Copilot CLI directly in a terminal, follow GitHub's [Copilot CLI installation guide](https://docs.github.com/copilot/how-tos/set-up/install-copilot-cli). If Copilot comes from an organization or enterprise, the Copilot CLI policy must be enabled there.
+
+## Copilot setup
+
+For the app itself, there is no separate global Copilot install step when running from source:
+
+```bash
+bun install
+```
+
+If you are using Copilot CLI directly in your terminal, install it with GitHub's docs and sign in from a trusted folder. On first launch, Copilot will prompt you to use `/login` if you are not already authenticated.
 
 The easiest way to use this fork is the desktop app.
 
