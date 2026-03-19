@@ -513,9 +513,10 @@ function summarizeToolOutput(value: string, limit = 96): string {
 function collapsedToolWorkEntryPreview(
   workEntry: WorkLogEntry,
   primaryPath: string | null,
+  showCommandOutput: boolean,
 ): string | null {
   if (workEntry.itemType === "command_execution" || workEntry.requestKind === "command") {
-    if (workEntry.output) {
+    if (workEntry.output && showCommandOutput) {
       return summarizeToolOutput(workEntry.output);
     }
     if (workEntry.command) {
@@ -528,7 +529,7 @@ function collapsedToolWorkEntryPreview(
   if (workEntry.command) {
     return workEntry.command;
   }
-  if (workEntry.output) {
+  if (workEntry.output && showCommandOutput) {
     return summarizeToolOutput(workEntry.output);
   }
   if (workEntry.detail) {
@@ -548,6 +549,7 @@ const ToolWorkEntryRow = memo(function ToolWorkEntryRow(props: {
 }) {
   const { workEntry, workEntryIndex, timestampFormat } = props;
   const [open, setOpen] = useState(false);
+  const { settings } = useAppSettings();
   const iconConfig = workToneIcon(workEntry.tone);
   const EntryIcon = workEntryIcon(workEntry);
   const heading = toolWorkEntryHeading(workEntry);
@@ -557,13 +559,13 @@ const ToolWorkEntryRow = memo(function ToolWorkEntryRow(props: {
     workEntry.changedFiles?.slice(primaryPath ? 1 : 0, primaryPath ? 4 : 4) ?? [];
   const hiddenPathCount =
     (workEntry.changedFiles?.length ?? 0) - additionalPaths.length - (primaryPath ? 1 : 0);
-  const preview = collapsedToolWorkEntryPreview(workEntry, primaryPath);
+  const preview = collapsedToolWorkEntryPreview(workEntry, primaryPath, settings.showCommandOutput);
   const displayText = preview ? `${heading} - ${preview}` : heading;
   const hasExpandedDetails = Boolean(
     workEntry.command ||
     primaryPath ||
     additionalPaths.length > 0 ||
-    workEntry.output ||
+    (workEntry.output && settings.showCommandOutput) ||
     typeof workEntry.exitCode === "number",
   );
 
@@ -663,7 +665,7 @@ const ToolWorkEntryRow = memo(function ToolWorkEntryRow(props: {
         </div>
       )}
 
-      {workEntry.output && (
+      {workEntry.output && settings.showCommandOutput && (
         <div className="rounded-md border border-border/55 bg-background/75 px-2.5 py-2">
           <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-4 text-foreground/78">
             {workEntry.output}
