@@ -207,6 +207,10 @@ describe("inferProviderForModel", () => {
     expect(inferProviderForModel("sonnet")).toBe("claudeAgent");
   });
 
+  it("prefers the fallback provider for shared model slugs", () => {
+    expect(inferProviderForModel("gpt-5.4", "copilot")).toBe("copilot");
+  });
+
   it("falls back when the model is unknown", () => {
     expect(inferProviderForModel("custom/internal-model")).toBe("codex");
     expect(inferProviderForModel("custom/internal-model", "claudeAgent")).toBe("claudeAgent");

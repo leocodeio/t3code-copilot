@@ -233,7 +233,8 @@ const make = Effect.gen(function* () {
     )
       ? thread.session.providerName
       : undefined;
-    const threadProvider: ProviderKind = currentProvider ?? inferProviderForModel(thread.model);
+    const threadProvider: ProviderKind =
+      currentProvider ?? inferProviderForModel(thread.model, options?.provider ?? "codex");
     if (options?.provider !== undefined && options.provider !== threadProvider) {
       return yield* new ProviderAdapterRequestError({
         provider: threadProvider,

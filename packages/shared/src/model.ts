@@ -141,6 +141,11 @@ export function inferProviderForModel(
   model: string | null | undefined,
   fallback: ProviderKind = "codex",
 ): ProviderKind {
+  const normalizedFallback = normalizeModelSlug(model, fallback);
+  if (normalizedFallback && MODEL_SLUG_SET_BY_PROVIDER[fallback].has(normalizedFallback)) {
+    return fallback;
+  }
+
   const normalizedClaude = normalizeModelSlug(model, "claudeAgent");
   if (normalizedClaude && MODEL_SLUG_SET_BY_PROVIDER.claudeAgent.has(normalizedClaude)) {
     return "claudeAgent";
@@ -151,7 +156,14 @@ export function inferProviderForModel(
     return "codex";
   }
 
-  return typeof model === "string" && model.trim().startsWith("claude-") ? "claudeAgent" : fallback;
+  const trimmed = typeof model === "string" ? model.trim() : "";
+  if (trimmed.startsWith("claude-")) {
+    return "claudeAgent";
+  }
+  if (trimmed.startsWith("gpt-")) {
+    return "codex";
+  }
+  return fallback;
 }
 
 export function getReasoningEffortOptions(provider: "codex"): ReadonlyArray<CodexReasoningEffort>;

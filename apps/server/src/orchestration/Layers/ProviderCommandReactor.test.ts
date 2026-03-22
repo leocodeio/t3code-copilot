@@ -110,7 +110,9 @@ describe("ProviderCommandReactor", () => {
         typeof input === "object" &&
         input !== null &&
         "provider" in input &&
-        (input.provider === "codex" || input.provider === "claudeAgent")
+        (input.provider === "codex" ||
+          input.provider === "copilot" ||
+          input.provider === "claudeAgent")
           ? input.provider
           : "codex";
       const resumeCursor =
@@ -550,6 +552,46 @@ describe("ProviderCommandReactor", () => {
         detail: expect.stringContaining("cannot switch to 'claudeAgent'"),
       },
     });
+  });
+
+  it("binds a first turn to the requested provider when the model slug is shared", async () => {
+    const harness = await createHarness({ threadModel: "gpt-5.4" });
+    const now = new Date().toISOString();
+
+    await Effect.runPromise(
+      harness.engine.dispatch({
+        type: "thread.turn.start",
+        commandId: CommandId.makeUnsafe("cmd-turn-start-shared-model-provider"),
+        threadId: ThreadId.makeUnsafe("thread-1"),
+        message: {
+          messageId: asMessageId("user-message-shared-model-provider"),
+          role: "user",
+          text: "hello copilot",
+          attachments: [],
+        },
+        provider: "copilot",
+        model: "gpt-5.4",
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        runtimeMode: "approval-required",
+        createdAt: now,
+      }),
+    );
+
+    await waitFor(() => harness.startSession.mock.calls.length === 1);
+    await waitFor(() => harness.sendTurn.mock.calls.length === 1);
+
+    expect(harness.startSession.mock.calls[0]?.[1]).toMatchObject({
+      provider: "copilot",
+      model: "gpt-5.4",
+    });
+    expect(harness.sendTurn.mock.calls[0]?.[0]).toMatchObject({
+      threadId: ThreadId.makeUnsafe("thread-1"),
+      model: "gpt-5.4",
+    });
+
+    const readModel = await Effect.runPromise(harness.engine.getReadModel());
+    const thread = readModel.threads.find((entry) => entry.id === ThreadId.makeUnsafe("thread-1"));
+    expect(thread?.session?.providerName).toBe("copilot");
   });
 
   it("rejects a turn when the requested model belongs to a different provider", async () => {
