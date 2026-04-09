@@ -81,14 +81,21 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
     ? (getProviderSnapshot(props.providers, "copilot") ?? null)
     : null;
   const copilotQuotaSummary = deriveCopilotQuotaSummary(copilotProvider?.quotaSnapshots);
-  const renderModelOptionLabel = (
+  const renderModelOptionContent = (
     provider: ProviderKind,
     modelOption: { slug: string; name: string },
   ) => {
     if (provider !== "copilot" || !copilotProvider) return modelOption.name;
     const model = findServerProviderModel(copilotProvider.models, modelOption.slug);
     if (model?.billingMultiplier == null) return modelOption.name;
-    return `${modelOption.name} — ${formatCopilotBillingMultiplier(model.billingMultiplier)}`;
+    return (
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="min-w-0 flex-1 truncate">{modelOption.name}</span>
+        <span className="shrink-0 text-[11px] text-muted-foreground/80">
+          {formatCopilotBillingMultiplier(model.billingMultiplier)}
+        </span>
+      </span>
+    );
   };
   const handleModelChange = (provider: ProviderKind, value: string) => {
     if (props.disabled) return;
@@ -207,7 +214,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                   value={modelOption.slug}
                   onClick={() => setIsMenuOpen(false)}
                 >
-                  {renderModelOptionLabel(props.lockedProvider!, modelOption)}
+                  {renderModelOptionContent(props.lockedProvider!, modelOption)}
                 </MenuRadioItem>
               ))}
             </MenuRadioGroup>
@@ -265,7 +272,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                             value={modelOption.slug}
                             onClick={() => setIsMenuOpen(false)}
                           >
-                            {renderModelOptionLabel(option.value, modelOption)}
+                            {renderModelOptionContent(option.value, modelOption)}
                           </MenuRadioItem>
                         ))}
                       </MenuRadioGroup>

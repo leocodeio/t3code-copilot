@@ -324,8 +324,12 @@ describe("ProviderModelPicker", () => {
         const text = document.body.textContent ?? "";
         expect(text).toContain("180 left");
         expect(text).toContain("120 / 300 used");
-        expect(text).toContain("GPT-5.4 — 1x");
-        expect(text).toContain("GPT-5.4 Mini — 0.33x");
+        expect(text).toContain("GPT-5.4");
+        expect(text).toContain("GPT-5.4 Mini");
+        expect(text).toContain("1x");
+        expect(text).toContain("0.33x");
+        expect(text).not.toContain("GPT-5.4 — 1x");
+        expect(text).not.toContain("GPT-5.4 Mini — 0.33x");
         expect(text).toContain("60% remaining");
         expect(text).not.toContain("Copilot premium usage");
         expect(text).not.toContain("Resets ");
