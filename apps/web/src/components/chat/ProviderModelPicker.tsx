@@ -90,11 +90,9 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
       ? findServerProviderModel(copilotProvider.models, props.model)
       : null;
   const copilotQuotaSummary = deriveCopilotQuotaSummary(copilotProvider?.quotaSnapshots);
-  const triggerSecondaryLabel =
-    activeProvider === "copilot"
-      ? selectedCopilotModel?.billingMultiplier != null
-        ? `${selectedModelLabel} — ${formatCopilotBillingMultiplier(selectedCopilotModel.billingMultiplier)}`
-        : selectedModelLabel
+  const copilotModelLabel =
+    activeProvider === "copilot" && selectedCopilotModel?.billingMultiplier != null
+      ? `${selectedModelLabel} — ${formatCopilotBillingMultiplier(selectedCopilotModel.billingMultiplier)}`
       : selectedModelLabel;
   const handleModelChange = (provider: ProviderKind, value: string) => {
     if (props.disabled) return;
@@ -149,13 +147,14 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
               props.activeProviderIconClassName,
             )}
           />
-          <span className="min-w-0 flex-1 truncate">
-            {props.compact || activeProvider !== "copilot"
-              ? selectedModelLabel
-              : triggerSecondaryLabel}
-          </span>
-          {activeProvider === "copilot" && copilotQuotaSummary && !props.compact ? (
-            <span className="shrink-0 text-[10px] text-muted-foreground/70">
+          <span className="min-w-0 flex-1 truncate">{copilotModelLabel}</span>
+          {activeProvider === "copilot" && copilotQuotaSummary ? (
+            <span
+              className={cn(
+                "shrink-0 truncate text-muted-foreground/70",
+                props.compact ? "max-w-16 text-[10px]" : "max-w-20 text-[11px]",
+              )}
+            >
               {copilotQuotaSummary.remainingRequests === null
                 ? "Unlimited"
                 : `${copilotQuotaSummary.remainingRequests} left`}
@@ -167,62 +166,47 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
       <MenuPopup align="start">
         {activeProvider === "copilot" && copilotQuotaSummary ? (
           <>
-            <div className="px-2.5 py-2">
-              <div className="flex min-w-[16rem] flex-col gap-2 rounded-lg border border-border/70 bg-muted/20 p-2.5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                      Copilot premium usage
-                    </div>
-                    <div className="mt-0.5 text-sm font-medium text-foreground">
-                      {copilotQuotaSummary.remainingRequests === null
-                        ? "Unlimited remaining"
-                        : `${copilotQuotaSummary.remainingRequests} left`}
-                    </div>
-                    <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                      {copilotQuotaSummary.entitlementRequests > 0 ? (
-                        <span>
-                          {copilotQuotaSummary.usedRequests} /{" "}
-                          {copilotQuotaSummary.entitlementRequests} used
-                        </span>
-                      ) : null}
-                      {selectedCopilotModel?.billingMultiplier != null ? (
-                        <span>
-                          {selectedModelLabel} —{" "}
-                          {formatCopilotBillingMultiplier(selectedCopilotModel.billingMultiplier)}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="text-right text-[11px] text-muted-foreground">
-                    <div>{copilotQuotaSummary.label}</div>
-                    {copilotQuotaSummary.remainingPercentage !== null ? (
-                      <div>{Math.round(copilotQuotaSummary.remainingPercentage)}% remaining</div>
-                    ) : null}
+            <div className="min-w-[16rem] px-3 py-2 text-xs text-muted-foreground">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-medium text-foreground">{copilotModelLabel}</div>
+                  <div className="mt-0.5">
+                    {copilotQuotaSummary.remainingRequests === null
+                      ? "Unlimited remaining"
+                      : `${copilotQuotaSummary.remainingRequests} left`}
+                    {copilotQuotaSummary.entitlementRequests > 0
+                      ? ` · ${copilotQuotaSummary.usedRequests} / ${copilotQuotaSummary.entitlementRequests} used`
+                      : ""}
                   </div>
                 </div>
-                {copilotQuotaSummary.remainingPercentage !== null ? (
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-foreground/75 transition-[width] duration-500 ease-out motion-reduce:transition-none"
-                      style={{
-                        width: `${Math.max(0, Math.min(100, copilotQuotaSummary.remainingPercentage))}%`,
-                      }}
-                    />
-                  </div>
+                <div className="shrink-0 text-right">
+                  <div>{copilotQuotaSummary.label}</div>
+                  {copilotQuotaSummary.remainingPercentage !== null ? (
+                    <div>{Math.round(copilotQuotaSummary.remainingPercentage)}% remaining</div>
+                  ) : null}
+                </div>
+              </div>
+              {copilotQuotaSummary.remainingPercentage !== null ? (
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-foreground/75 transition-[width] duration-500 ease-out motion-reduce:transition-none"
+                    style={{
+                      width: `${Math.max(0, Math.min(100, copilotQuotaSummary.remainingPercentage))}%`,
+                    }}
+                  />
+                </div>
+              ) : null}
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+                {formatQuotaResetDate(copilotQuotaSummary.resetDate) ? (
+                  <span>Resets {formatQuotaResetDate(copilotQuotaSummary.resetDate)}</span>
                 ) : null}
-                <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                  {formatQuotaResetDate(copilotQuotaSummary.resetDate) ? (
-                    <span>Resets {formatQuotaResetDate(copilotQuotaSummary.resetDate)}</span>
-                  ) : null}
-                  {copilotQuotaSummary.overage > 0 ? (
-                    <span>{copilotQuotaSummary.overage} overage requests</span>
-                  ) : null}
-                  {copilotQuotaSummary.overageAllowedWithExhaustedQuota ||
-                  copilotQuotaSummary.usageAllowedWithExhaustedQuota ? (
-                    <span>Pay-per-request available after quota exhaustion</span>
-                  ) : null}
-                </div>
+                {copilotQuotaSummary.overage > 0 ? (
+                  <span>{copilotQuotaSummary.overage} overage requests</span>
+                ) : null}
+                {copilotQuotaSummary.overageAllowedWithExhaustedQuota ||
+                copilotQuotaSummary.usageAllowedWithExhaustedQuota ? (
+                  <span>Pay-per-request available after quota exhaustion</span>
+                ) : null}
               </div>
             </div>
             <MenuDivider />
