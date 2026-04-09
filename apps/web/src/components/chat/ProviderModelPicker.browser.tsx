@@ -303,7 +303,7 @@ describe("ProviderModelPicker", () => {
     }
   });
 
-  it("shows Copilot premium usage inline in the trigger and menu header", async () => {
+  it("shows Copilot premium usage inline while keeping multipliers in the model list", async () => {
     const mounted = await mountPicker({
       provider: "copilot",
       model: "gpt-5.4",
@@ -312,8 +312,10 @@ describe("ProviderModelPicker", () => {
 
     try {
       await vi.waitFor(() => {
-        expect(document.body.textContent ?? "").toContain("GPT-5.4 — 1x");
-        expect(document.body.textContent ?? "").toContain("180 left");
+        const text = document.body.textContent ?? "";
+        expect(text).toContain("GPT-5.4");
+        expect(text).toContain("180 left");
+        expect(text).not.toContain("GPT-5.4 — 1x");
       });
 
       await page.getByRole("button").click();
@@ -323,9 +325,11 @@ describe("ProviderModelPicker", () => {
         expect(text).toContain("180 left");
         expect(text).toContain("120 / 300 used");
         expect(text).toContain("GPT-5.4 — 1x");
-        expect(text).not.toContain("Copilot premium usage");
+        expect(text).toContain("GPT-5.4 Mini — 0.33x");
         expect(text).toContain("60% remaining");
-        expect(text).toContain("Pay-per-request available after quota exhaustion");
+        expect(text).not.toContain("Copilot premium usage");
+        expect(text).not.toContain("Resets ");
+        expect(text).not.toContain("Pay-per-request available after quota exhaustion");
       });
     } finally {
       await mounted.cleanup();

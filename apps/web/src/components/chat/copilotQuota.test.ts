@@ -60,6 +60,22 @@ describe("copilotQuota", () => {
     });
   });
 
+  it("prefers derived remaining percentages over stale snapshot percentages", () => {
+    const summary = deriveCopilotQuotaSummary([
+      {
+        key: "premium_interactions",
+        entitlementRequests: 1500,
+        usedRequests: 651,
+        remainingPercentage: 100,
+        overage: 0,
+        overageAllowedWithExhaustedQuota: false,
+      },
+    ]);
+
+    expect(summary?.remainingRequests).toBe(849);
+    expect(summary?.remainingPercentage).toBeCloseTo(56.6, 5);
+  });
+
   it("formats model multipliers compactly", () => {
     expect(formatCopilotBillingMultiplier(1)).toBe("1x");
     expect(formatCopilotBillingMultiplier(1.5)).toBe("1.5x");

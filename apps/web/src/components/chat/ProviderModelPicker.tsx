@@ -49,11 +49,6 @@ const COMING_SOON_PROVIDER_OPTIONS = [
   { id: "gemini", label: "Gemini", icon: Gemini },
 ] as const;
 
-function formatQuotaResetDate(value: string | null): string | null {
-  if (!value) return null;
-  return new Date(value).toLocaleDateString();
-}
-
 function providerIconClassName(
   provider: ProviderKind | ProviderPickerKind,
   fallbackClassName: string,
@@ -85,15 +80,16 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   const copilotProvider = props.providers
     ? (getProviderSnapshot(props.providers, "copilot") ?? null)
     : null;
-  const selectedCopilotModel =
-    activeProvider === "copilot" && copilotProvider
-      ? findServerProviderModel(copilotProvider.models, props.model)
-      : null;
   const copilotQuotaSummary = deriveCopilotQuotaSummary(copilotProvider?.quotaSnapshots);
-  const copilotModelLabel =
-    activeProvider === "copilot" && selectedCopilotModel?.billingMultiplier != null
-      ? `${selectedModelLabel} — ${formatCopilotBillingMultiplier(selectedCopilotModel.billingMultiplier)}`
-      : selectedModelLabel;
+  const renderModelOptionLabel = (
+    provider: ProviderKind,
+    modelOption: { slug: string; name: string },
+  ) => {
+    if (provider !== "copilot" || !copilotProvider) return modelOption.name;
+    const model = findServerProviderModel(copilotProvider.models, modelOption.slug);
+    if (model?.billingMultiplier == null) return modelOption.name;
+    return `${modelOption.name} — ${formatCopilotBillingMultiplier(model.billingMultiplier)}`;
+  };
   const handleModelChange = (provider: ProviderKind, value: string) => {
     if (props.disabled) return;
     if (!value) return;
@@ -147,7 +143,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
               props.activeProviderIconClassName,
             )}
           />
-          <span className="min-w-0 flex-1 truncate">{copilotModelLabel}</span>
+          <span className="min-w-0 flex-1 truncate">{selectedModelLabel}</span>
           {activeProvider === "copilot" && copilotQuotaSummary ? (
             <span
               className={cn(
@@ -169,7 +165,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
             <div className="min-w-[16rem] px-3 py-2 text-xs text-muted-foreground">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="font-medium text-foreground">{copilotModelLabel}</div>
+                  <div className="font-medium text-foreground">{selectedModelLabel}</div>
                   <div className="mt-0.5">
                     {copilotQuotaSummary.remainingRequests === null
                       ? "Unlimited remaining"
@@ -179,12 +175,11 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                       : ""}
                   </div>
                 </div>
-                <div className="shrink-0 text-right">
-                  <div>{copilotQuotaSummary.label}</div>
-                  {copilotQuotaSummary.remainingPercentage !== null ? (
-                    <div>{Math.round(copilotQuotaSummary.remainingPercentage)}% remaining</div>
-                  ) : null}
-                </div>
+                {copilotQuotaSummary.remainingPercentage !== null ? (
+                  <div className="shrink-0 text-right">
+                    {Math.round(copilotQuotaSummary.remainingPercentage)}% remaining
+                  </div>
+                ) : null}
               </div>
               {copilotQuotaSummary.remainingPercentage !== null ? (
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
@@ -196,18 +191,6 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                   />
                 </div>
               ) : null}
-              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
-                {formatQuotaResetDate(copilotQuotaSummary.resetDate) ? (
-                  <span>Resets {formatQuotaResetDate(copilotQuotaSummary.resetDate)}</span>
-                ) : null}
-                {copilotQuotaSummary.overage > 0 ? (
-                  <span>{copilotQuotaSummary.overage} overage requests</span>
-                ) : null}
-                {copilotQuotaSummary.overageAllowedWithExhaustedQuota ||
-                copilotQuotaSummary.usageAllowedWithExhaustedQuota ? (
-                  <span>Pay-per-request available after quota exhaustion</span>
-                ) : null}
-              </div>
             </div>
             <MenuDivider />
           </>
@@ -224,7 +207,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                   value={modelOption.slug}
                   onClick={() => setIsMenuOpen(false)}
                 >
-                  {modelOption.name}
+                  {renderModelOptionLabel(props.lockedProvider!, modelOption)}
                 </MenuRadioItem>
               ))}
             </MenuRadioGroup>
@@ -282,7 +265,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                             value={modelOption.slug}
                             onClick={() => setIsMenuOpen(false)}
                           >
-                            {modelOption.name}
+                            {renderModelOptionLabel(option.value, modelOption)}
                           </MenuRadioItem>
                         ))}
                       </MenuRadioGroup>

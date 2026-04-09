@@ -48,12 +48,23 @@ export function deriveCopilotQuotaSummary(
   if (!snapshot) return null;
 
   const isUnlimitedEntitlement = snapshot.isUnlimitedEntitlement ?? false;
-  const remainingPercentage = Number.isFinite(snapshot.remainingPercentage)
-    ? Math.max(0, Math.min(100, snapshot.remainingPercentage * 100))
-    : null;
   const remainingRequests = isUnlimitedEntitlement
     ? null
     : Math.max(0, snapshot.entitlementRequests - snapshot.usedRequests);
+  const derivedRemainingPercentage =
+    !isUnlimitedEntitlement && remainingRequests !== null && snapshot.entitlementRequests > 0
+      ? (remainingRequests / snapshot.entitlementRequests) * 100
+      : null;
+  const normalizedSnapshotRemainingPercentage = Number.isFinite(snapshot.remainingPercentage)
+    ? snapshot.remainingPercentage > 1
+      ? snapshot.remainingPercentage
+      : snapshot.remainingPercentage * 100
+    : null;
+  const remainingPercentage =
+    derivedRemainingPercentage ??
+    (normalizedSnapshotRemainingPercentage !== null
+      ? Math.max(0, Math.min(100, normalizedSnapshotRemainingPercentage))
+      : null);
 
   return {
     key: snapshot.key,
